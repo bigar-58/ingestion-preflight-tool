@@ -7,6 +7,7 @@ from pathlib import Path
 from src.profiling import profile_csv
 from src.validation import validate_users_csv
 from src.quarantine import quarantine_file
+from src.cleaning import clean_users_csv_to_parquet
 
 ROOT = Path(__file__).resolve().parents[1]
 DROPZONE = ROOT / "dropzone"
@@ -32,36 +33,52 @@ def main() -> None:
 
     files = sorted(DROPZONE.glob("*.csv"))
     for f in files: 
+        #Profile
         profile = profile_csv(f)
+        profile_dict = {
+            "row_count": profile.row_count,
+            "column_count": profile.column_count,
+            "columns": profile.columns,
+            "null_counts": profile.null_counts
+        }
 
+        #Validate 
         if f.name == "users.csv":
             v = validate_users_csv(f)
             if not v.ok:
-                quarantine_file(f, STAGING_QUAR)
+                quarantine_dest = quarantine_file(f, STAGING_QUAR)
                 results.append(
                     FileResult(
                         filename=f.name, 
                         status="quarantined",
                         reason="; ".join(v.errors),
-                        profile={
-                            "row_count": profile.row_count,
-                            "column_count": profile.column_count,
-                            "columns": profile.columns,
-                            "null_counts": profile.null_counts
-                        }
+                        profile= profile_dict,
+                        outputs={"quarantine_path": str(quarantine_dest)}
                     )   
                 )
+                continue
+            
+            #Cleaning
+            parquet_path = STAGING_CLEAN / "users.parquet"
+            clean_users_csv_to_parquet(f,parquet_path)
 
+            results.append(
+                FileResult(
+                    filename=f.name,
+                    status="accepted",
+                    profile=profile_dict,
+                    outputs={"parquet_path": str(parquet_path)},
+                )
+            )
+
+            continue
+        
+        #Fail safe for unknown files
         results.append(
             FileResult(
                 filename=f.name, 
                 status="accepted",
-                profile={
-                    "row_count": profile.row_count,
-                    "column_count": profile.column_count,
-                    "columns": profile.columns,
-                    "null_counts": profile.null_counts
-                }
+                profile=profile_dict
             )   
         )
 
