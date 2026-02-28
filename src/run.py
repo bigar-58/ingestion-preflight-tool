@@ -7,7 +7,7 @@ from pathlib import Path
 from src.profiling import profile_csv
 from src.quarantine import quarantine_file
 from src.processed import archive_processed_file
-from src.datasets import DATASETS
+from src.datasets import match_dataset
 
 ROOT = Path(__file__).resolve().parents[1]
 DROPZONE = ROOT / "dropzone"
@@ -38,7 +38,7 @@ def main() -> None:
     files = sorted(DROPZONE.glob("*.csv"))
     for f in files: 
         #Get ingestion helpers
-        spec = DATASETS.get(f.name)
+        spec = match_dataset(f.name)
 
         #Profile
         profile = profile_csv(f)
