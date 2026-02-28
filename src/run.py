@@ -6,12 +6,14 @@ from datetime import datetime, timezone
 from pathlib import Path
 from src.profiling import profile_csv
 from src.quarantine import quarantine_file
+from src.processed import archive_processed_file
 from src.datasets import DATASETS
 
 ROOT = Path(__file__).resolve().parents[1]
 DROPZONE = ROOT / "dropzone"
 STAGING_CLEAN = ROOT / "staging" / "clean" 
 STAGING_QUAR = ROOT / "staging" / "quarantine" 
+STAGING_PROCESSED = ROOT / "staging" / "processed"
 REPORTS = ROOT / "reports"
 
 
@@ -27,7 +29,9 @@ def main() -> None:
     ts = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
     STAGING_CLEAN.mkdir(parents=True, exist_ok=True)
     STAGING_QUAR.mkdir(parents=True, exist_ok=True)
+    STAGING_PROCESSED.mkdir(parents=True, exist_ok=True)
     REPORTS.mkdir(parents=True, exist_ok=True)
+    
 
     results: list[FileResult] = []
 
@@ -65,12 +69,18 @@ def main() -> None:
             parquet_path = STAGING_CLEAN / "users.parquet"
             spec.cleaner(f,parquet_path)
 
+            processed_dest = archive_processed_file(f, STAGING_PROCESSED)
+
+            #Log file result
             results.append(
                 FileResult(
                     filename=f.name,
                     status="accepted",
                     profile=profile_dict,
-                    outputs={"parquet_path": str(parquet_path)},
+                    outputs={
+                        "parquet_path": str(parquet_path),
+                        "processed_path": str(processed_dest)
+                    },
                 )
             )
 
