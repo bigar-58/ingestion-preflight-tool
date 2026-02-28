@@ -4,6 +4,7 @@ import json
 from dataclasses import dataclass, asdict
 from datetime import datetime, timezone
 from pathlib import Path
+from src.profiling import profile_csv
 
 ROOT = Path(__file__).resolve().parents[1]
 DROPZONE = ROOT / "dropzone"
@@ -17,6 +18,7 @@ class FileResult:
     filename: str
     status: str # "accepted" | "quarantined"
     reason: str | None = None
+    profile: dict | None = None
 
 def main() -> None: 
     ts = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
@@ -28,8 +30,19 @@ def main() -> None:
 
     files = sorted(DROPZONE.glob("*.csv"))
     for f in files: 
-        # placeholder for the meantime everthing will be accepted
-        results.append(FileResult(filename=f.name, status="accepted"))
+        profile = profile_csv(f)
+        results.append(
+            FileResult(
+                filename=f.name, 
+                status="accepted",
+                profile={
+                    "row_count": profile.row_count,
+                    "column_count": profile.column_count,
+                    "columns": profile.columns,
+                    "null_counts": profile.null_counts
+                }
+            )   
+        )
 
     report = {
         "run_id": ts,
