@@ -5,9 +5,8 @@ from dataclasses import dataclass, asdict
 from datetime import datetime, timezone
 from pathlib import Path
 from src.profiling import profile_csv
-from src.validation import validate_users_csv
 from src.quarantine import quarantine_file
-from src.cleaning import clean_users_csv_to_parquet
+from src.datasets import DATASETS
 
 ROOT = Path(__file__).resolve().parents[1]
 DROPZONE = ROOT / "dropzone"
@@ -22,6 +21,7 @@ class FileResult:
     status: str # "accepted" | "quarantined"
     reason: str | None = None
     profile: dict | None = None
+    outputs: dict | None = None
 
 def main() -> None: 
     ts = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
@@ -33,6 +33,9 @@ def main() -> None:
 
     files = sorted(DROPZONE.glob("*.csv"))
     for f in files: 
+        #Get ingestion helpers
+        spec = DATASETS.get(f.name)
+
         #Profile
         profile = profile_csv(f)
         profile_dict = {
@@ -44,7 +47,7 @@ def main() -> None:
 
         #Validate 
         if f.name == "users.csv":
-            v = validate_users_csv(f)
+            v = spec.validator(f)
             if not v.ok:
                 quarantine_dest = quarantine_file(f, STAGING_QUAR)
                 results.append(
@@ -60,7 +63,7 @@ def main() -> None:
             
             #Cleaning
             parquet_path = STAGING_CLEAN / "users.parquet"
-            clean_users_csv_to_parquet(f,parquet_path)
+            spec.cleaner(f,parquet_path)
 
             results.append(
                 FileResult(
