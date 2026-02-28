@@ -20,6 +20,7 @@ class DatasetSpec:
     validator: Callable[[Path], ValidationResult]
     cleaner: Callable[[Path, Path], None]
     output_parquet_name: str
+    output_dirname: str
 
 @dataclass(frozen=True)
 class DatasetRoute:
@@ -36,7 +37,8 @@ ROUTES: list[DatasetRoute] = [
             dataset_name="users",
             validator=validate_users_csv,
             cleaner=clean_users_csv_to_parquet,
-            output_parquet_name="users.parquet"
+            output_parquet_name="users.parquet",
+            output_dir_name="users"
         ) 
     )
 ]

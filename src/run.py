@@ -8,6 +8,7 @@ from src.profiling import profile_csv
 from src.quarantine import quarantine_file
 from src.processed import archive_processed_file
 from src.datasets import match_dataset
+from src.partitioning import partition_from_filename
 
 ROOT = Path(__file__).resolve().parents[1]
 DROPZONE = ROOT / "dropzone"
@@ -37,9 +38,6 @@ def main() -> None:
 
     files = sorted(DROPZONE.glob("*.csv"))
     for f in files: 
-        #Get ingestion helpers
-        spec = match_dataset(f.name)
-
         #Profile
         profile = profile_csv(f)
         profile_dict = {
@@ -49,51 +47,58 @@ def main() -> None:
             "null_counts": profile.null_counts
         }
 
-        #Validate 
-        if f.name == "users.csv":
-            v = spec.validator(f)
-            if not v.ok:
-                quarantine_dest = quarantine_file(f, STAGING_QUAR)
-                results.append(
-                    FileResult(
-                        filename=f.name, 
-                        status="quarantined",
-                        reason="; ".join(v.errors),
-                        profile= profile_dict,
-                        outputs={"quarantine_path": str(quarantine_dest)}
-                    )   
-                )
-                continue
-            
-            #Cleaning
-            parquet_path = STAGING_CLEAN / "users.parquet"
-            spec.cleaner(f,parquet_path)
-
-            processed_dest = archive_processed_file(f, STAGING_PROCESSED)
-
-            #Log file result
+        #Get ingestion helpers
+        spec = match_dataset(f.name)
+        if spec is None:
             results.append(
                 FileResult(
-                    filename=f.name,
+                    filename=f.name, 
                     status="accepted",
-                    profile=profile_dict,
-                    outputs={
-                        "parquet_path": str(parquet_path),
-                        "processed_path": str(processed_dest)
-                    },
-                )
+                    profile=profile_dict
+                )   
             )
+            continue
 
+        #Validate 
+        v = spec.validator(f)
+        if not v.ok:
+            quarantine_dest = quarantine_file(f, STAGING_QUAR)
+            results.append(
+                FileResult(
+                    filename=f.name, 
+                    status="quarantined",
+                    reason="; ".join(v.errors),
+                    profile= profile_dict,
+                    outputs={"quarantine_path": str(quarantine_dest)}
+                )   
+            )
             continue
         
-        #Fail safe for unknown files
+        #Cleaning
+        part = partition_from_filename(f.name)
+        base_dir = STAGING_CLEAN / spec.output_dirname
+        if part is not None:
+            base_dir = base_dir / f"{part.key}={part.val}"
+
+        parquet_path = base_dir / spec.output_parquet_name
+        spec.cleaner(f,parquet_path)
+
+        processed_dest = archive_processed_file(f, STAGING_PROCESSED)
+
+        #Log file result
         results.append(
             FileResult(
-                filename=f.name, 
+                filename=f.name,
                 status="accepted",
-                profile=profile_dict
-            )   
+                profile=profile_dict,
+                outputs={
+                    "parquet_path": str(parquet_path),
+                    "processed_path": str(processed_dest)
+                },
+            )
         )
+
+
 
     report = {
         "run_id": ts,
