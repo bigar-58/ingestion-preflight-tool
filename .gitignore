@@ -1,0 +1,15 @@
+# data outputs
+dropzone/*
+staging/
+reports/
+
+# python
+__pycache__/
+*.pyc
+.venv/
+.env
+
+# OS/editor
+.DS_Store
+.vscode/
+.idea/

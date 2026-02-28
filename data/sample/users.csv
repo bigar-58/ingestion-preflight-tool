@@ -1,0 +1,5 @@
+1,alice@example.com,2025-01-10,US
+2,bob@example.com,2025-01-11,CA
+2,duplicate@example.com,2025-01-12,CA
+3,not-an-email,2025-13-40,US
+4,,2025-02-01,
