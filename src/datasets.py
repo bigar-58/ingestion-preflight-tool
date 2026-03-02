@@ -7,6 +7,8 @@ import fnmatch
 
 from src.validation import ValidationResult, validate_users_csv
 from src.cleaning import clean_users_csv_to_parquet
+from src.validation_countries import validate_countries_csv
+from src.cleaning_countries import clean_countries_csv_to_parquet
 
 @dataclass(frozen=True)
 class DatasetSpec:
@@ -38,8 +40,18 @@ ROUTES: list[DatasetRoute] = [
             validator=validate_users_csv,
             cleaner=clean_users_csv_to_parquet,
             output_parquet_name="users.parquet",
-            output_dir_name="users"
+            output_dirname="users"
         ) 
+    ),
+    DatasetRoute(
+        pattern="countries#.csv",
+        spec=DatasetSpec(
+            dataset_name="countries",
+            validator=validate_countries_csv,
+            cleaner=clean_countries_csv_to_parquet,
+            output_dirname="countries",
+            output_parquet_name="countries.parquet"
+        )
     )
 ]
 
