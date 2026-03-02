@@ -25,6 +25,7 @@ class FileResult:
     reason: str | None = None
     profile: dict | None = None
     outputs: dict | None = None
+    validation_errors: list[dict] | None = None
 
 def main() -> None: 
     ts = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
@@ -63,13 +64,19 @@ def main() -> None:
         v = spec.validator(f)
         if not v.ok:
             quarantine_dest = quarantine_file(f, STAGING_QUAR)
+            error_dicts = [
+                {"code": e.code, "message": e.message, "count": e.count}
+                for e in v.errors
+            ]
+            reason = ", ".join(sorted({e.code for e in v.errors}))
             results.append(
                 FileResult(
                     filename=f.name, 
                     status="quarantined",
-                    reason="; ".join(v.errors),
+                    reason=reason,
                     profile= profile_dict,
-                    outputs={"quarantine_path": str(quarantine_dest)}
+                    outputs={"quarantine_path": str(quarantine_dest)},
+                    error_dicts=error_dicts
                 )   
             )
             continue

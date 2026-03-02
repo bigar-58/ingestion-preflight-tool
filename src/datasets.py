@@ -5,7 +5,8 @@ from typing import Callable
 from pathlib import Path
 import fnmatch
 
-from src.validation_users import ValidationResult, validate_users_csv
+from src.contracts import ValidationResult
+from src.validation_users import validate_users_csv
 from src.cleaning_users import clean_users_csv_to_parquet
 from src.validation_countries import validate_countries_csv
 from src.cleaning_countries import clean_countries_csv_to_parquet
