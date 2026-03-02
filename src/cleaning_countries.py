@@ -13,10 +13,10 @@ def clean_countries_csv_to_parquet(src_csv: Path, dest_parquet: Path) -> None:
     - Uppercase country_code
     """
 
-    dest_parquet.parent.mkdir(parents=True)
+    dest_parquet.parent.mkdir(parents=True, exist_ok=True)
     
     con = duckdb.connect(database=":memory:")
-    rel = con.read_csv(str(src_csv, header=True))
+    rel = con.read_csv(str(src_csv), header=True)
     con.register("rel", rel)
     
     cleaning_q = """
@@ -26,6 +26,6 @@ def clean_countries_csv_to_parquet(src_csv: Path, dest_parquet: Path) -> None:
         NULLIF(TRIM(CAST(region AS VARCHAR)), '') AS region
         FROM rel
         """
-    con.execute(f"COPY ({cleaning_q}) TO ? (FORMAT_PARQUET)", [str(dest_parquet)])
+    con.execute(f"COPY ({cleaning_q}) TO ? (FORMAT PARQUET)", [str(dest_parquet)])
     
     con.close()

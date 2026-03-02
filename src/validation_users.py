@@ -4,10 +4,7 @@ from dataclasses import dataclass
 from pathlib import Path
 import duckdb
 
-@dataclass
-class ValidationResult:
-    ok: bool
-    errors: list[str]
+from src.contracts import ValidationResult
 
 EMAIL_REGEX = r"^[^@\s]+@[^@\s]+\.[^@\s]+$"
 
@@ -41,11 +38,14 @@ def validate_users_csv(path: Path) -> ValidationResult:
     
     # 3) Unique user_id
     q = """
-        SELECT COUNT(DISTINCT user_id)
-        FROM rel
-        WHERE NOT (user_id IS NULL OR TRIM(CAST(user_id AS VARCHAR)) = '')
-        GROUP BY user_id
-        HAVING COUNT(*) > 1
+        SELECT COUNT(*)
+        FROM (
+            SELECT user_id
+            FROM rel
+            WHERE NOT (user_id IS NULL OR TRIM(CAST(user_id AS VARCHAR)) = '')
+            GROUP BY user_id
+            HAVING COUNT(*) > 1
+        )
     """
     dup_cnt = con.execute(q).fetchone()[0]
     if dup_cnt > 0:

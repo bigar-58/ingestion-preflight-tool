@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from pathlib import Path
 import duckdb
 
-from src.validation import ValidationResult
+from src.contracts import ValidationResult
 
 COUNTRY_CODE_REGEX = r"^[A-Z]{2}$"
 
@@ -34,7 +34,7 @@ def validate_countries_csv(path: Path) -> ValidationResult:
         con.close()
         return ValidationResult(ok=False, errors=errors)
 
-    missing_code_q = """
+    missing_code_q = f"""
         SELECT COUNT(*) FROM rel WHERE {missing_expr('country_code')}
         """
     missing_code = con.execute(missing_code_q).fetchone()[0]
@@ -48,17 +48,17 @@ def validate_countries_csv(path: Path) -> ValidationResult:
             HAVING COUNT(*) > 1
         )
         """
-    dup_cnt = con.execute(dup_cnt_q)
+    dup_cnt = con.execute(dup_cnt_q).fetchone()[0]
     if dup_cnt > 0:
         errors.append(f"duplicate_key: country_code has {dup_cnt} duplicated values(s)")
     
-    bad_code_q = """
+    bad_code_q = f"""
         SELECT COUNT(*)
         FROM rel 
         WHERE NOT {missing_expr('country_code')}
         AND NOT regexp_matches(TRIM(CAST(country_code AS VARCHAR)), '{COUNTRY_CODE_REGEX}')
         """
-    bad_code = con.execute(bad_code_q)
+    bad_code = con.execute(bad_code_q).fetchone()[0]
     if bad_code > 0:
         errors.append(f"invalid_format: country_code has {bad_code} invalid_value(s)")
     
