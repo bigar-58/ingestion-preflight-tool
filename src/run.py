@@ -4,6 +4,7 @@ import json
 from dataclasses import dataclass, asdict
 from datetime import datetime, timezone
 from pathlib import Path
+from src.validation_utils import summarize_error_codes, errors_to_dicts
 from src.profiling import profile_csv
 from src.quarantine import quarantine_file
 from src.processed import archive_processed_file
@@ -64,11 +65,8 @@ def main() -> None:
         v = spec.validator(f)
         if not v.ok:
             quarantine_dest = quarantine_file(f, STAGING_QUAR)
-            error_dicts = [
-                {"code": e.code, "message": e.message, "count": e.count}
-                for e in v.errors
-            ]
-            reason = ", ".join(sorted({e.code for e in v.errors}))
+            error_dicts = errors_to_dicts(v.errors)
+            reason = summarize_error_codes(v.errors)
             results.append(
                 FileResult(
                     filename=f.name, 
@@ -76,7 +74,7 @@ def main() -> None:
                     reason=reason,
                     profile= profile_dict,
                     outputs={"quarantine_path": str(quarantine_dest)},
-                    error_dicts=error_dicts
+                    validation_errors=error_dicts
                 )   
             )
             continue

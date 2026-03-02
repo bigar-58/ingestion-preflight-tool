@@ -97,7 +97,7 @@ def validate_users_csv(path: Path) -> ValidationResult:
     if bad_date_cnt > 0:
         errors.append(
             ValidationError(
-                code="missing_required_columns",
+                code="invalid_date",
                 message=f"signup_date has unparsable data as YYYY-MM-DD",
                 count=bad_date_cnt
             )
