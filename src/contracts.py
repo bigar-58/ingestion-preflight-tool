@@ -2,7 +2,20 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-@dataclass
+@dataclass(frozen=True)
+class ValidationError:
+    """
+    Structured validation error.
+    
+    code: unique identifier to error type
+    message: Human-readable error msg
+    count: Count of bad rows/rows failing data contract
+    """
+    code: str
+    message: str
+    count: int | None = None
+
+@dataclass(frozen=True)
 class ValidationResult:
     """
     Shared validator return type.
@@ -16,4 +29,4 @@ class ValidationResult:
       - Keep them stable so they can be searched and aggregated.
     """
     ok: bool
-    errors: list[str]
+    errors: list[ValidationError]

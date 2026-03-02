@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from pathlib import Path
 import duckdb
 
-from src.contracts import ValidationResult
+from src.contracts import ValidationResult, ValidationError
 
 COUNTRY_CODE_REGEX = r"^[A-Z]{2}$"
 
@@ -30,7 +30,13 @@ def validate_countries_csv(path: Path) -> ValidationResult:
     required_cols = ["country_name", "country_name", "region"]
     missing_cols = [c for c in required_cols if c not in rel.columns]
     if missing_cols:
-        errors.append(f"missing_required_columns: {missing_cols}")
+        errors.append(
+            ValidationError(
+                code="missing_required_columns",
+                message=f"Missing required columns",
+                count=len(missing_cols)
+            )
+        )
         con.close()
         return ValidationResult(ok=False, errors=errors)
 
@@ -50,7 +56,13 @@ def validate_countries_csv(path: Path) -> ValidationResult:
         """
     dup_cnt = con.execute(dup_cnt_q).fetchone()[0]
     if dup_cnt > 0:
-        errors.append(f"duplicate_key: country_code has {dup_cnt} duplicated values(s)")
+        errors.append(
+            ValidationError(
+                code="duplicate_key",
+                message=f"country_code has duplicate values",
+                count=dup_cnt
+            )
+        )
     
     bad_code_q = f"""
         SELECT COUNT(*)
@@ -60,7 +72,13 @@ def validate_countries_csv(path: Path) -> ValidationResult:
         """
     bad_code = con.execute(bad_code_q).fetchone()[0]
     if bad_code > 0:
-        errors.append(f"invalid_format: country_code has {bad_code} invalid_value(s)")
+        errors.append(
+            ValidationError(
+                code="invalid_format",
+                message="country_code has invalid values",
+                count=bad_code
+            )
+        )
     
     con.close()
     return ValidationResult(ok=len(errors) == 0, errors=errors)

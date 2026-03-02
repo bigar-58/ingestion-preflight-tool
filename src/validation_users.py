@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from pathlib import Path
 import duckdb
 
-from src.contracts import ValidationResult
+from src.contracts import ValidationResult, ValidationError
 
 EMAIL_REGEX = r"^[^@\s]+@[^@\s]+\.[^@\s]+$"
 
@@ -16,7 +16,7 @@ def validate_users_csv(path: Path) -> ValidationResult:
     def missing_expr(col: str) -> str:
         return f'("{col}" IS NULL OR TRIM(CAST("{col}" AS VARCHAR)) = \'\')'
 
-    errors: list[str] = []
+    errors: list[ValidationError] = []
     con = duckdb.connect(database=":memory:")
     rel = con.read_csv(str(path), header=True)
     con.register("rel", rel)
@@ -26,7 +26,13 @@ def validate_users_csv(path: Path) -> ValidationResult:
     cols = rel.columns
     missing_cols = [c for c in required_cols if c not in cols]
     if missing_cols:
-        errors.append(f"missing_required_columns: {missing_cols}")
+        errors.append(
+            ValidationError(
+                code="missing_required_columns",
+                message=f"Missing columns: {missing_cols}",
+                count=len(missing_cols)
+            )
+        )
         con.close()
         return ValidationResult(ok=False, errors=errors)
     
@@ -34,7 +40,13 @@ def validate_users_csv(path: Path) -> ValidationResult:
     for col in ["user_id", "email", "signup_date"]:
         cnt = con.execute(f"SELECT COUNT(*) FROM rel WHERE {missing_expr(col)}").fetchone()[0]
         if cnt > 0:
-            errors.append(f"missing_required_values: {col} has {cnt} missing")
+            errors.append(
+                ValidationError(
+                code="missing_required_values",
+                message=f"{col} has NULL/blank values",
+                count=int(cnt)
+            )
+        )
     
     # 3) Unique user_id
     q = """
@@ -49,7 +61,13 @@ def validate_users_csv(path: Path) -> ValidationResult:
     """
     dup_cnt = con.execute(q).fetchone()[0]
     if dup_cnt > 0:
-        errors.append(f"duplicate_key: user_id has {dup_cnt} duplicate values")
+        errors.append(
+            ValidationError(
+                code="duplicate_key",
+                message="user_id has duplicate values",
+                count=dup_cnt
+            )
+        )
 
     # 4) Email format
     q = f"""
@@ -60,7 +78,13 @@ def validate_users_csv(path: Path) -> ValidationResult:
     """
     bad_email_cnt = con.execute(q).fetchone()[0]
     if bad_email_cnt > 0:
-        errors.append(f"invalid_format: email has {bad_email_cnt} invalid value(s)")
+        errors.append(
+            ValidationError(
+                code="invalid_format",
+                message=f"Email has invalid format",
+                count=bad_email_cnt
+            )
+        )
 
     # 5) Date parse (DuckDB: try_strptime returns NULL on failure)
     q = f"""
@@ -71,7 +95,13 @@ def validate_users_csv(path: Path) -> ValidationResult:
     """
     bad_date_cnt = con.execute(q).fetchone()[0]
     if bad_date_cnt > 0:
-        errors.append(f"invalid_date: signup_date has {bad_date_cnt} unparsable")
+        errors.append(
+            ValidationError(
+                code="missing_required_columns",
+                message=f"signup_date has unparsable data as YYYY-MM-DD",
+                count=bad_date_cnt
+            )
+        )
 
     con.close()
     return ValidationResult(ok=len(errors) == 0, errors=errors)
