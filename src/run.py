@@ -10,19 +10,21 @@ from src.quarantine import quarantine_file
 from src.processed import archive_processed_file
 from src.datasets import match_dataset
 from src.partitioning import partition_from_filename
+from src.policy import UnknownDatasetPolicy
 
 ROOT = Path(__file__).resolve().parents[1]
 DROPZONE = ROOT / "dropzone"
+STAGING_UNROUTED = ROOT / "staging" / "unrouted"
 STAGING_CLEAN = ROOT / "staging" / "clean" 
 STAGING_QUAR = ROOT / "staging" / "quarantine" 
 STAGING_PROCESSED = ROOT / "staging" / "processed"
 REPORTS = ROOT / "reports"
-
+UNKNOWN_DATASET_POLICY = UnknownDatasetPolicy.PROFILE_ONLY
 
 @dataclass
 class FileResult:
     filename: str
-    status: str # "accepted" | "quarantined"
+    status: str # "accepted" | "quarantined" | "unrouted"
     reason: str | None = None
     profile: dict | None = None
     outputs: dict | None = None
@@ -30,6 +32,7 @@ class FileResult:
 
 def main() -> None: 
     ts = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+    STAGING_UNROUTED.mkdir(parents=True, exist_ok=True)
     STAGING_CLEAN.mkdir(parents=True, exist_ok=True)
     STAGING_QUAR.mkdir(parents=True, exist_ok=True)
     STAGING_PROCESSED.mkdir(parents=True, exist_ok=True)
@@ -52,13 +55,34 @@ def main() -> None:
         #Get ingestion helpers
         spec = match_dataset(f.name)
         if spec is None:
-            results.append(
-                FileResult(
-                    filename=f.name, 
-                    status="accepted",
-                    profile=profile_dict
-                )   
-            )
+            if UNKNOWN_DATASET_POLICY == UnknownDatasetPolicy.STRICT:
+                quarantine_dest = quarantine_file(f, STAGING_QUAR)
+                results.append(
+                    FileResult(
+                        filename=f.name, 
+                        status="quarantined",
+                        reason="unknown_dataset",
+                        validation_errors=[{
+                            "code": "unknown_dataset",
+                            "message": "No dataset rout matched filename",
+                            "count": None
+                        }],
+                        profile=profile_dict,
+                        outputs={"quarantine_path": str(quarantine_dest)}
+                    )   
+                )
+            else: 
+                unrouted_dest = archive_processed_file(f, STAGING_UNROUTED)
+                results.append(
+                    FileResult(
+                        filename=f.name, 
+                        status="unrouted",
+                        reason="unknown_dataset",
+                        profile=profile_dict,
+                        outputs={"unrouted_path": str(unrouted_dest)}
+                    )   
+                )
+                
             continue
 
         #Validate 
