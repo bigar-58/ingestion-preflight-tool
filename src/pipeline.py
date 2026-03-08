@@ -23,6 +23,7 @@ class FileResult:
     profile: dict | None = None
     outputs: dict | None = None
     validation_errors: list[dict] | None = None
+    output_assertion_errors: list[dict] | None = None
     
 def run_pipeline(
     dropzone: Path, 
@@ -114,6 +115,28 @@ def run_pipeline(
             parquet_path = base_dir / spec.output_parquet_name
             
             spec.cleaner(f, parquet_path)
+            if spec.asserter is not None:
+                ar = spec.asserter(parquet_path)
+                if not ar.ok:
+                    assertion_dicts = [
+                        {"code": e.code, "message": e.message, "count": e.count}
+                        for e in ar.errors
+                    ]
+                    quarantine_dest = quarantine_file(f, staging_quar)
+                    results.append(
+                        FileResult(
+                            filename=f.name,
+                            status="quarantined",
+                            reason="output_assertion_failed",
+                            profile=prof_dict,
+                            outputs={
+                                "parquet_path": str(parquet_path),
+                                "quarantine_path": str(quarantine_dest),
+                            },
+                            output_assertion_errors=assertion_dicts,
+                        )
+                    )
+                    continue
             processed_dest = archive_processed_file(f, staging_processed)
             
             results.append(
