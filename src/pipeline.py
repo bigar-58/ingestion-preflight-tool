@@ -13,6 +13,7 @@ from src.unrouted import archive_unrouted_file
 from src.policy import UnknownDatasetPolicy
 from src.validation_utils import summarize_error_codes, errors_to_dicts
 from src.partitioning import partition_from_filename
+from src.reporting import write_latest_report, append_report_index
 
 @dataclass
 class FileResult:
@@ -37,7 +38,7 @@ def run_pipeline(
     ts = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
     
     staging_clean = staging_dir / "clean"
-    staging_quar = staging_quar / "quaratine"
+    staging_quar = staging_dir / "quaratine"
     staging_processed = staging_dir / "processed"
     staging_unrouted = staging_dir / "unrouted"
     
@@ -47,7 +48,7 @@ def run_pipeline(
     staging_unrouted.mkdir(parents=True, exist_ok=True)
     reports_dir.mkdir(parents=True, exist_ok=True)
     
-    results = list[FileResult] = []
+    results: list[FileResult] = []
     files = sorted(dropzone.glob(file_glob))
     
     for f in files:
@@ -127,16 +128,23 @@ def run_pipeline(
                 )
             )
         
-        report = {
-            "run_id": ts,
-            "dropzone": str(dropzone),
-            "file_seen": len(files),
-            "unknown_policy": unknown_policy.value,
-            "results": [asdict(r) for r in results]
-        }
-        
-        report_path = reports_dir / f"run_{ts}.json"
-        report_path.write_text(json.dumps(report, indent=2))
-        return report_path    
+    report = {
+        "run_id": ts,
+        "dropzone": str(dropzone),
+        "file_seen": len(files),
+        "unknown_policy": unknown_policy.value,
+        "results": [asdict(r) for r in results]
+    }
+    
+    report_path = reports_dir / f"run_{ts}.json"
+    report_path.write_text(json.dumps(report, indent=2))
+    
+    #Log latest run and write into latest.json for quick access
+    write_latest_report(report, reports_dir)
+    append_report_index(report, reports_dir)
+    
+    return report_path    
+
+    
         
     
