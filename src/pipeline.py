@@ -131,7 +131,7 @@ def run_pipeline(
     report = {
         "run_id": ts,
         "dropzone": str(dropzone),
-        "file_seen": len(files),
+        "files_seen": len(files),
         "unknown_policy": unknown_policy.value,
         "results": [asdict(r) for r in results]
     }
