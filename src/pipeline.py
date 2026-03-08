@@ -14,6 +14,8 @@ from src.policy import UnknownDatasetPolicy
 from src.validation_utils import summarize_error_codes, errors_to_dicts
 from src.partitioning import partition_from_filename
 from src.reporting import write_latest_report, append_report_index
+from src.output_policy import OutputWritePolicy
+from src.output_paths import resolve_output_target
 
 @dataclass
 class FileResult:
@@ -30,6 +32,7 @@ def run_pipeline(
     staging_dir: Path,
     reports_dir: Path, 
     unknown_policy: UnknownDatasetPolicy,
+    output_policy: OutputWritePolicy,
     file_glob: str = "*.csv"
 ) -> Path: 
     """
@@ -108,11 +111,36 @@ def run_pipeline(
             )
         else:
             part = partition_from_filename(f.name)
+            target = resolve_output_target(
+                staging_clean=staging_clean,
+                output_dirname=spec.output_dirname,
+                output_filename=spec.output_parquet_name,
+                partition=part,
+                run_id=ts,
+                policy=output_policy,
+            )
+            parquet_path = target.parquet_path
             
-            base_dir = staging_clean / spec.output_dirname
-            if part is not None:
-                base_dir = base_dir / f"{part.key}={part.val}"
-            parquet_path = base_dir / spec.output_parquet_name
+            if output_policy == OutputWritePolicy.FAIL_IF_EXISTS and target.already_exists:
+                quarantine_dest = quarantine_file(f, staging_quar)
+                results.append(
+                    FileResult(
+                        filename=f.name,
+                        status="quarantined",
+                        reason="output_already_exists",
+                        profile=prof_dict,
+                        validation_errors=[{
+                            "code": "output_already_exists",
+                            "message": f"Refusing to overwrite existing output: {parquet_path}",
+                            "count": None,
+                        }],
+                        outputs={
+                            "quarantine_path": str(quarantine_dest),
+                            "existing_parquet_path": str(parquet_path),
+                        },
+                    )
+                )
+                continue
             
             spec.cleaner(f, parquet_path)
             if spec.asserter is not None:
@@ -156,7 +184,8 @@ def run_pipeline(
         "dropzone": str(dropzone),
         "files_seen": len(files),
         "unknown_policy": unknown_policy.value,
-        "results": [asdict(r) for r in results]
+        "results": [asdict(r) for r in results],
+        "output_policy": output_policy.value
     }
     
     report_path = reports_dir / f"run_{ts}.json"

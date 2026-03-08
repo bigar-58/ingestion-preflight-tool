@@ -5,6 +5,7 @@ from pathlib import Path
 
 from src.pipeline import run_pipeline
 from src.policy import UnknownDatasetPolicy
+from src.output_policy import OutputWritePolicy
 
 def parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser(prog="ingestion-preflight-toolkit")
@@ -17,6 +18,11 @@ def parse_args() -> argparse.Namespace:
         choices=[e.value for e in UnknownDatasetPolicy], 
         default=UnknownDatasetPolicy.PROFILE_ONLY.value
     )
+    p.add_argument(
+        "--output-policy",
+        choices=[e.value for e in OutputWritePolicy],
+        default=OutputWritePolicy.OVERWRITE.value,
+    )
     return p.parse_args()
 
 def main() -> None:
@@ -26,7 +32,8 @@ def main() -> None:
         staging_dir=args.staging,
         reports_dir=args.reports,
         file_glob=args.file_glob,
-        unknown_policy=UnknownDatasetPolicy(args.unknown_policy)
+        unknown_policy=UnknownDatasetPolicy(args.unknown_policy),
+        output_policy=OutputWritePolicy(args.output_policy)
     )
     print(f"Wrote report: {report_path}")
     

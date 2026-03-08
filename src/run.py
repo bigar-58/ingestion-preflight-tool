@@ -4,6 +4,8 @@ from pathlib import Path
 
 from src.pipeline import run_pipeline
 from src.policy import UnknownDatasetPolicy
+from src.output_policy import OutputWritePolicy
+
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -13,6 +15,7 @@ def main() -> None:
         staging_dir=ROOT / "staging",
         reports_dir=ROOT / "reports",
         unknown_policy=UnknownDatasetPolicy.PROFILE_ONLY,
+        output_policy=OutputWritePolicy.OVERWRITE,
         file_glob="*.csv"
     )
     print(f"Wrote report: {report_path}")
