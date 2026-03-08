@@ -5,11 +5,14 @@ from typing import Callable
 from pathlib import Path
 import fnmatch
 
+from src.assertion_contracts import OutputAssertionResult
 from src.contracts import ValidationResult
 from src.validation_users import validate_users_csv
 from src.cleaning_users import clean_users_csv_to_parquet
 from src.validation_countries import validate_countries_csv
 from src.cleaning_countries import clean_countries_csv_to_parquet
+from src.assertions_users import assert_users_parquet
+from src.assertions_countries import assert_countries_parquet
 
 @dataclass(frozen=True)
 class DatasetSpec:
@@ -22,6 +25,7 @@ class DatasetSpec:
     dataset_name: str
     validator: Callable[[Path], ValidationResult]
     cleaner: Callable[[Path, Path], None]
+    asserter: Callable[[Path], OutputAssertionResult] | None = None
     output_parquet_name: str
     output_dirname: str
 
@@ -41,7 +45,8 @@ ROUTES: list[DatasetRoute] = [
             validator=validate_users_csv,
             cleaner=clean_users_csv_to_parquet,
             output_parquet_name="users.parquet",
-            output_dirname="users"
+            output_dirname="users",
+            asserter=assert_users_parquet,
         ) 
     ),
     DatasetRoute(
@@ -51,7 +56,8 @@ ROUTES: list[DatasetRoute] = [
             validator=validate_countries_csv,
             cleaner=clean_countries_csv_to_parquet,
             output_dirname="countries",
-            output_parquet_name="countries.parquet"
+            output_parquet_name="countries.parquet",
+            asserter=assert_countries_parquet,
         )
     )
 ]
