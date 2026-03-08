@@ -1,143 +1,20 @@
 from __future__ import annotations
 
-import json
-from dataclasses import dataclass, asdict
-from datetime import datetime, timezone
 from pathlib import Path
-from src.validation_utils import summarize_error_codes, errors_to_dicts
-from src.profiling import profile_csv
-from src.quarantine import quarantine_file
-from src.processed import archive_processed_file
-from src.datasets import match_dataset
-from src.partitioning import partition_from_filename
+
+from src.pipeline import run_pipeline
 from src.policy import UnknownDatasetPolicy
 
 ROOT = Path(__file__).resolve().parents[1]
-DROPZONE = ROOT / "dropzone"
-STAGING_UNROUTED = ROOT / "staging" / "unrouted"
-STAGING_CLEAN = ROOT / "staging" / "clean" 
-STAGING_QUAR = ROOT / "staging" / "quarantine" 
-STAGING_PROCESSED = ROOT / "staging" / "processed"
-REPORTS = ROOT / "reports"
-UNKNOWN_DATASET_POLICY = UnknownDatasetPolicy.PROFILE_ONLY
-
-@dataclass
-class FileResult:
-    filename: str
-    status: str # "accepted" | "quarantined" | "unrouted"
-    reason: str | None = None
-    profile: dict | None = None
-    outputs: dict | None = None
-    validation_errors: list[dict] | None = None
 
 def main() -> None: 
-    ts = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
-    STAGING_UNROUTED.mkdir(parents=True, exist_ok=True)
-    STAGING_CLEAN.mkdir(parents=True, exist_ok=True)
-    STAGING_QUAR.mkdir(parents=True, exist_ok=True)
-    STAGING_PROCESSED.mkdir(parents=True, exist_ok=True)
-    REPORTS.mkdir(parents=True, exist_ok=True)
-    
-
-    results: list[FileResult] = []
-
-    files = sorted(DROPZONE.glob("*.csv"))
-    for f in files: 
-        #Profile
-        profile = profile_csv(f)
-        profile_dict = {
-            "row_count": profile.row_count,
-            "column_count": profile.column_count,
-            "columns": profile.columns,
-            "null_counts": profile.null_counts
-        }
-
-        #Get ingestion helpers
-        spec = match_dataset(f.name)
-        if spec is None:
-            if UNKNOWN_DATASET_POLICY == UnknownDatasetPolicy.STRICT:
-                quarantine_dest = quarantine_file(f, STAGING_QUAR)
-                results.append(
-                    FileResult(
-                        filename=f.name, 
-                        status="quarantined",
-                        reason="unknown_dataset",
-                        validation_errors=[{
-                            "code": "unknown_dataset",
-                            "message": "No dataset rout matched filename",
-                            "count": None
-                        }],
-                        profile=profile_dict,
-                        outputs={"quarantine_path": str(quarantine_dest)}
-                    )   
-                )
-            else: 
-                unrouted_dest = archive_processed_file(f, STAGING_UNROUTED)
-                results.append(
-                    FileResult(
-                        filename=f.name, 
-                        status="unrouted",
-                        reason="unknown_dataset",
-                        profile=profile_dict,
-                        outputs={"unrouted_path": str(unrouted_dest)}
-                    )   
-                )
-                
-            continue
-
-        #Validate 
-        v = spec.validator(f)
-        if not v.ok:
-            quarantine_dest = quarantine_file(f, STAGING_QUAR)
-            error_dicts = errors_to_dicts(v.errors)
-            reason = summarize_error_codes(v.errors)
-            results.append(
-                FileResult(
-                    filename=f.name, 
-                    status="quarantined",
-                    reason=reason,
-                    profile= profile_dict,
-                    outputs={"quarantine_path": str(quarantine_dest)},
-                    validation_errors=error_dicts
-                )   
-            )
-            continue
-        
-        #Cleaning
-        part = partition_from_filename(f.name)
-        base_dir = STAGING_CLEAN / spec.output_dirname
-        if part is not None:
-            base_dir = base_dir / f"{part.key}={part.val}"
-
-        parquet_path = base_dir / spec.output_parquet_name
-        spec.cleaner(f,parquet_path)
-
-        processed_dest = archive_processed_file(f, STAGING_PROCESSED)
-
-        #Log file result
-        results.append(
-            FileResult(
-                filename=f.name,
-                status="accepted",
-                profile=profile_dict,
-                outputs={
-                    "parquet_path": str(parquet_path),
-                    "processed_path": str(processed_dest)
-                },
-            )
-        )
-
-
-
-    report = {
-        "run_id": ts,
-        "dropzone": str(DROPZONE),
-        "files_seen": len(files),
-        "results": [asdict(r) for r in results]
-    }
-
-    report_path = REPORTS / f"run_{ts}.json"
-    report_path.write_text(json.dumps(report, indent=2), encoding="utf-8")
+    report_path = run_pipeline(
+        dropzone=ROOT / "dropzone",
+        staging_dir=ROOT / "staging",
+        reports_dir=ROOT / "reports",
+        unknown_policy=UnknownDatasetPolicy.PROFILE_ONLY,
+        file_glob="*.csv"
+    )
     print(f"Wrote report: {report_path}")
 
 if __name__ =="__main__":
