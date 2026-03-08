@@ -111,7 +111,7 @@ def run_pipeline(
             
             base_dir = staging_clean / spec.output_dirname
             if part is not None:
-                base_dir = base_dir / f"{part.key}={part.value}"
+                base_dir = base_dir / f"{part.key}={part.val}"
             parquet_path = base_dir / spec.output_parquet_name
             
             spec.cleaner(f, parquet_path)

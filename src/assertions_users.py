@@ -4,7 +4,7 @@ import duckdb
 
 from src.assertion_contracts import OutputAssertionError, OutputAssertionResult
 
-def assert_user_parquer(path: Path) -> OutputAssertionResult:
+def assert_users_parquet(path: Path) -> OutputAssertionResult:
     """
     Assertions after clean up in parquet file
     
@@ -19,7 +19,7 @@ def assert_user_parquer(path: Path) -> OutputAssertionResult:
     parquet_path = path.as_posix()
     
     row_count = con.execute(
-        f"SELECT COUNT(*) FROM read_parquet('{parquet_path})"
+        f"SELECT COUNT(*) FROM read_parquet('{parquet_path}')"
     ).fetchone()[0]
     if row_count == 0:
         errors.append(
@@ -32,11 +32,13 @@ def assert_user_parquer(path: Path) -> OutputAssertionResult:
     
     dup_cnt = con.execute(
         f"""
-        SELECT user_id
-        FROM read_parquet('{parquet_path}')
-        WHERE user_id IS NOT NULL
-        GROUP BY user_id
-        HAVING COUNT(*) > 1
+        SELECT COUNT(*) FROM (
+            SELECT user_id
+            FROM read_parquet('{parquet_path}')
+            WHERE user_id IS NOT NULL
+            GROUP BY user_id
+            HAVING COUNT(*) > 1
+        )
         """
     ).fetchone()[0]
     if dup_cnt > 0:
