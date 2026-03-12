@@ -1,0 +1,80 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+      - master
+  pull_request: 
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs: 
+  smoke-tests:
+    runs-on: ubuntu-latest
+    steps: 
+      - name: Check out rep
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+        
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+        
+      - name: Compile source
+        run: |
+          python -m compileall src 
+        
+      - name: Run good users smoke tests
+        run: |
+          rm -rf dropzone staging reports
+          mkdir -p dropzone stagin reports
+          cp data/sample/users_good.csv dropzone/users_good_2026-02-28.csv
+          python -m src.cli --unknown-policy PROFILE_ONLY --output-policy OVERWRITE
+          latest=$(ls -t reports/run_*.json | head -n 1)
+          python - << 'PY'
+          import json, pathlib
+          latest = sorted(pathlib.Path("reports").glob("run_*.json"))[-1]
+          report = json.loads(latest.read_text())
+          assert report["results"][0]["status"] == "accepted", report
+          parquet_path = pathlib.Path(report["results"][0]["outputs"]["parquet_path"])
+          assert parquet_path.exists(), parquet_path
+
+      - name: Run bad users smoke test 
+        run: | 
+          rm -rf dropzone staging reports
+          mkdir -p dropzone staging reports
+          cp data/sample/users.csv dropzone/users_2026-02-28.csv
+          python -m src.cli --unknown-policy PROFILE_ONLY --output-policy OVERWRITE
+          python - << 'PY'
+          import json, pathlib 
+          latest = sorted(pathlib.Path("reports").glob("run_*.jon"))[-1]
+          report = json.loads(latest.read_text())
+          result = report["results"][0]
+          assert result["status"] == "quarantined", result
+          assert result["validation_errors"], result
+          codes = {e["code"] for e in result["validation_errors"]}
+          assert "duplicate_key" in codes, codes
+          PY
+      
+      - name: Run unknown dataset test 
+        run: |
+          rm -rf dropzone staging reports
+          mkdir -p dropzone staging reports
+          printf 'a,b\n1,2\n' > dropzone/random_2026-02-28.csv
+          python -m src.cli --unknown-policy PROFILE_ONLY --output-policy OVERWRITE
+          python - <<'PY'
+          import json, pathlib
+          latest = sorted(pathlib.Path("reports").glob("run_*.json"))[-1]
+          report = json.loads(latest.read_text())
+          result = report["results"][0]
+          assert result["status"] == "unrouted", result
+          assert "unrouted_path" in result["outputs"], result
+          PY
