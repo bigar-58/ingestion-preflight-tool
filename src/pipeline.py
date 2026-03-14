@@ -94,6 +94,7 @@ def run_pipeline(
                         outputs={"unrouted_path": str(unrouted_dest)}
                     )
                 )
+            continue
         
         #Dataset validation
         v = spec.validator(f)
