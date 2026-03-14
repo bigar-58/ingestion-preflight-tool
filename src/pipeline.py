@@ -6,8 +6,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from src.profiling import profile_csv
-from src.datasets import match_dataset
 from src.quarantine import quarantine_file
+from src.datasets.registry import match_dataset
 from src.processed import archive_processed_file
 from src.unrouted import archive_unrouted_file
 from src.policy import UnknownDatasetPolicy
@@ -16,6 +16,7 @@ from src.partitioning import partition_from_filename
 from src.reporting import write_latest_report, append_report_index
 from src.output_policy import OutputWritePolicy
 from src.output_paths import resolve_output_target
+
 
 @dataclass
 class FileResult:

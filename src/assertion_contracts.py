@@ -20,4 +20,3 @@ class OutputAssertionResult:
     """
     ok: bool
     errors: list[OutputAssertionError]
-    

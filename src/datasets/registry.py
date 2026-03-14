@@ -4,9 +4,11 @@ import fnmatch
 
 from src.datasets.base import DatasetDefinition
 from src.datasets.users.dataset import USERS_DATASET
+from src.datasets.countries.dataset import COUNTRIES_DATASET
 
 DATASETS: list[DatasetDefinition] = [
-    USERS_DATASET
+    USERS_DATASET,
+    COUNTRIES_DATASET
 ]
 
 def match_dataset(filename: str) -> DatasetDefinition | None:
